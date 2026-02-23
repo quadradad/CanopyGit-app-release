@@ -1,0 +1,28 @@
+@import 'tailwindcss';
+@config '../../tailwind.config.ts';
+
+/* CSS Custom Properties for design tokens */
+:root {
+  /* Font stacks */
+  --font-sans: -apple-system, BlinkMacSystemFont, 'SF Pro', system-ui, sans-serif;
+  --font-mono: 'SF Mono', SFMono-Regular, ui-monospace, monospace;
+
+  /* Animation timings */
+  --duration-fast: 100ms;
+  --duration-normal: 200ms;
+  --duration-slow: 300ms;
+  --duration-save: 1500ms;
+}
+
+/* NOTE: Do NOT add an unlayered * { margin/padding: 0 } reset here.
+   Tailwind v4 handles its own reset inside @layer base.
+   Unlayered rules override ALL @layer utilities (px-*, py-*, m-*, gap-*, etc). */
+
+@layer base {
+  body {
+    background-color: #1C2433;
+    color: #E8E6E0;
+    font-family: var(--font-sans);
+    overflow: hidden;
+  }
+}
