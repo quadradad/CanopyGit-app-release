@@ -1,3 +1,5 @@
+import fs from 'fs';
+import path from 'path';
 import type { Express, Request, Response } from 'express';
 import type { IPCResult } from '../shared/types';
 import type { GitService } from '../main/services/git';
@@ -46,6 +48,7 @@ export interface Services {
   databaseService: DatabaseService;
   settingsService: SettingsService;
   refreshService: RefreshService;
+  staticPath: string;
 }
 
 function ok<T>(data: T): IPCResult<T> {
@@ -64,11 +67,17 @@ function errorMessage(error: unknown): string {
 type ChannelHandler = (body: Record<string, unknown>) => Promise<IPCResult<unknown>>;
 
 export function registerRoutes(app: Express, services: Services): void {
-  const { gitService, githubService, databaseService, settingsService, refreshService } = services;
+  const { gitService, githubService, databaseService, settingsService, refreshService, staticPath } =
+    services;
 
   // ── Health ──
 
   app.get('/health', (_req: Request, res: Response) => {
+    const indexPath = path.join(staticPath, 'index.html');
+    if (!fs.existsSync(indexPath)) {
+      res.status(503).json({ status: 'error', reason: 'client bundle not found' });
+      return;
+    }
     res.json({ status: 'ok' });
   });
 

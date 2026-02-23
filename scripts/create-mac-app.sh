@@ -359,6 +359,32 @@ SAFARI_SCRIPT
 
 detect_and_launch_browser
 
+# ── Verify browser window appeared ──────────────────────────────────
+# On first launch, Chrome may delegate to existing process without opening a window.
+# Wait briefly and retry if needed.
+if [[ -n "$BROWSER_PID" ]]; then
+  sleep 3
+  if ! kill -0 "$BROWSER_PID" 2>/dev/null; then
+    # PID exited — may have delegated to existing Chrome. Check for window.
+    WINDOW_CHECK=$(osascript -e '
+      tell application "System Events"
+        if not (exists process "Google Chrome") then return "no"
+      end tell
+      tell application "Google Chrome"
+        repeat with w in windows
+          if URL of active tab of w starts with "http://localhost:'"$PORT"'" then return "yes"
+        end repeat
+      end tell
+      return "no"
+    ' 2>/dev/null || echo "no")
+
+    if [[ "$WINDOW_CHECK" != "yes" ]]; then
+      log "No browser window detected — retrying launch"
+      detect_and_launch_browser
+    fi
+  fi
+fi
+
 # ── Wait for browser to close ───────────────────────────────────────
 if [[ -n "$BROWSER_PID" ]]; then
   log "Waiting for browser (PID $BROWSER_PID) to close..."

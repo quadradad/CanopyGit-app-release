@@ -173,6 +173,7 @@ else
       </dict>
     </dict>"
   killall Dock 2>/dev/null || true
+  sleep 2  # Give Launch Services time to re-index after Dock restart
   success "Added to Dock"
 fi
 
