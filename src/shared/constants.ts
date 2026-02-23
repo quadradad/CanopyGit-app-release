@@ -66,6 +66,7 @@ export const BRANCH_STATUS_LABELS: Record<string, string> = {
 export const DEFAULT_STALENESS_THRESHOLD_DAYS = 30;
 export const PR_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 export const FOCUS_REFRESH_DEBOUNCE_MS = 60 * 1000; // 60 seconds
+export const DEFAULT_AUTO_REFRESH_INTERVAL_MS = 30 * 1000; // 30 seconds
 export const AUTO_SAVE_DEBOUNCE_MS = 1000; // 1 second
 export const SEARCH_DEBOUNCE_MS = 150; // 150ms
 export const MAX_TREE_DEPTH = 8;

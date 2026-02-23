@@ -11,12 +11,21 @@ const COOLDOWN_OPTIONS = [
   { value: 300, label: '5 minutes' },
 ];
 
+const INTERVAL_OPTIONS = [
+  { value: 15, label: '15 seconds' },
+  { value: 30, label: '30 seconds' },
+  { value: 60, label: '60 seconds' },
+  { value: 120, label: '2 minutes' },
+];
+
 export function SyncRefreshSection() {
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [cooldown, setCooldown] = useState(60);
   const [showStale, setShowStale] = useState(true);
   const [threshold, setThreshold] = useState(30);
   const [loaded, setLoaded] = useState(false);
+  const [pollingEnabled, setPollingEnabled] = useState(true);
+  const [pollingInterval, setPollingInterval] = useState(30);
 
   useEffect(() => {
     async function load() {
@@ -26,6 +35,8 @@ export function SyncRefreshSection() {
         setCooldown(result.data.refreshCooldownSeconds);
         setShowStale(result.data.showStaleWarnings);
         setThreshold(result.data.stalenessThresholdDays);
+        setPollingEnabled(result.data.autoRefreshEnabled);
+        setPollingInterval(result.data.autoRefreshIntervalSeconds);
         setLoaded(true);
       }
     }
@@ -49,6 +60,38 @@ export function SyncRefreshSection() {
           save({ autoRefreshOnFocus: v });
         }}
       />
+
+      <ToggleSwitch
+        label="Background auto-refresh"
+        description="Periodically refresh branch data in the background"
+        checked={pollingEnabled}
+        onChange={(v) => {
+          setPollingEnabled(v);
+          save({ autoRefreshEnabled: v });
+        }}
+      />
+
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex-1 min-w-0">
+          <span className="text-sm text-text-primary">Refresh interval</span>
+          <p className="text-xs text-text-tertiary mt-0.5">How often to check for branch changes</p>
+        </div>
+        <select
+          value={pollingInterval}
+          onChange={(e) => {
+            const val = Number(e.target.value);
+            setPollingInterval(val);
+            save({ autoRefreshIntervalSeconds: val });
+          }}
+          className="bg-bg-input border border-border-default rounded-md px-3 py-1.5 text-sm text-text-primary focus:outline-none focus:border-accent transition-colors"
+        >
+          {INTERVAL_OPTIONS.map((opt) => (
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
+            </option>
+          ))}
+        </select>
+      </div>
 
       <div className="flex items-center justify-between gap-4">
         <div className="flex-1 min-w-0">
