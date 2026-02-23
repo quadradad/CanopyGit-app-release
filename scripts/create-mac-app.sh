@@ -308,9 +308,51 @@ trap cleanup EXIT INT TERM
 APP_URL="http://localhost:$PORT"
 BROWSER_PID=""
 
+# Remove stale singleton locks from a previous browser session.
+# These prevent Chrome from cleanly starting with our user-data-dir.
+clean_browser_locks() {
+  local profile_dir="$HOME/Library/Application Support/Canopy/browser-profile"
+  rm -f "$profile_dir/SingletonLock" \
+        "$profile_dir/SingletonSocket" \
+        "$profile_dir/SingletonCookie" 2>/dev/null || true
+}
+
+# Poll for a Chrome/Chromium window with our app URL via AppleScript.
+# Returns when the window is no longer found.
+poll_for_window_close() {
+  local browser_name="$1"
+  while true; do
+    sleep 3
+    WINDOW_EXISTS=$(osascript -e '
+      tell application "System Events"
+        if not (exists process "'"$browser_name"'") then return "no"
+      end tell
+      tell application "'"$browser_name"'"
+        repeat with w in windows
+          if URL of active tab of w starts with "http://localhost:'"$PORT"'" then return "yes"
+        end repeat
+      end tell
+      return "no"
+    ' 2>/dev/null || echo "no")
+
+    if [[ "$WINDOW_EXISTS" != "yes" ]]; then
+      log "Browser window closed (detected via polling)"
+      break
+    fi
+  done
+}
+
 detect_and_launch_browser() {
   # Priority: Chrome (app mode) → Brave → Edge → Chromium → Safari → default
-  local chromium_browsers=(
+  # Paired arrays: .app bundles (for open -na) and binaries (for -x checks)
+  local app_bundles=(
+    "/Applications/Google Chrome.app"
+    "/Applications/Google Chrome Canary.app"
+    "/Applications/Brave Browser.app"
+    "/Applications/Microsoft Edge.app"
+    "/Applications/Chromium.app"
+  )
+  local browser_binaries=(
     "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
     "/Applications/Google Chrome Canary.app/Contents/MacOS/Google Chrome Canary"
     "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser"
@@ -318,19 +360,24 @@ detect_and_launch_browser() {
     "/Applications/Chromium.app/Contents/MacOS/Chromium"
   )
 
-  for browser in "${chromium_browsers[@]}"; do
-    if [[ -x "$browser" ]]; then
-      log "Launching: $browser (app mode)"
-      "$browser" \
+  clean_browser_locks
+
+  local i
+  for i in "${!browser_binaries[@]}"; do
+    if [[ -x "${browser_binaries[$i]}" ]]; then
+      local app_bundle="${app_bundles[$i]}"
+      log "Launching: $app_bundle (app mode via open -na)"
+      open -na "$app_bundle" --args \
         --app="$APP_URL" \
         --window-size="$WIN_WIDTH,$WIN_HEIGHT" \
         --window-position=center \
         --disable-extensions \
         --no-first-run \
         --no-default-browser-check \
-        --user-data-dir="$HOME/Library/Application Support/Canopy/browser-profile" \
-        >/dev/null 2>&1 &
-      BROWSER_PID=$!
+        --user-data-dir="$HOME/Library/Application Support/Canopy/browser-profile"
+      sleep 2
+      BROWSER_PID=$(pgrep -f "user-data-dir=.*browser-profile" | head -1 || true)
+      log "Browser PID: ${BROWSER_PID:-unknown}"
       return 0
     fi
   done
@@ -359,74 +406,23 @@ SAFARI_SCRIPT
 
 detect_and_launch_browser
 
-# ── Verify browser window appeared ──────────────────────────────────
-# On first launch, Chrome may delegate to existing process without opening a window.
-# Wait briefly and retry if needed.
-if [[ -n "$BROWSER_PID" ]]; then
-  sleep 3
-  if ! kill -0 "$BROWSER_PID" 2>/dev/null; then
-    # PID exited — may have delegated to existing Chrome. Check for window.
-    WINDOW_CHECK=$(osascript -e '
-      tell application "System Events"
-        if not (exists process "Google Chrome") then return "no"
-      end tell
-      tell application "Google Chrome"
-        repeat with w in windows
-          if URL of active tab of w starts with "http://localhost:'"$PORT"'" then return "yes"
-        end repeat
-      end tell
-      return "no"
-    ' 2>/dev/null || echo "no")
-
-    if [[ "$WINDOW_CHECK" != "yes" ]]; then
-      log "No browser window detected — retrying launch"
-      detect_and_launch_browser
-    fi
-  fi
-fi
-
 # ── Wait for browser to close ───────────────────────────────────────
 if [[ -n "$BROWSER_PID" ]]; then
   log "Waiting for browser (PID $BROWSER_PID) to close..."
-
-  # Chrome reuses its existing process when already running — the PID we
-  # spawned may exit immediately as it hands off to the main Chrome process.
-  # Detect this and fall back to polling the app window via AppleScript.
   sleep 2
   if kill -0 "$BROWSER_PID" 2>/dev/null; then
-    # PID is still alive — it's an independent process, wait normally
+    # PID is alive — wait for it directly
     log "Browser running as independent process"
     wait "$BROWSER_PID" 2>/dev/null || true
     log "Browser window closed"
   else
-    # PID exited instantly — Chrome delegated to existing process.
-    # Poll for the Canopy app-mode window via AppleScript.
-    log "Browser PID exited (delegated to existing Chrome) — polling for app window"
-    while true; do
-      sleep 3
-      # Check if a Chrome window with our app URL still exists
-      WINDOW_EXISTS=$(osascript -e '
-        tell application "System Events"
-          if not (exists process "Google Chrome") then return "no"
-        end tell
-        tell application "Google Chrome"
-          repeat with w in windows
-            if URL of active tab of w starts with "http://localhost:'"$PORT"'" then return "yes"
-          end repeat
-        end tell
-        return "no"
-      ' 2>/dev/null || echo "no")
-
-      if [[ "$WINDOW_EXISTS" != "yes" ]]; then
-        log "Browser window closed (detected via polling)"
-        break
-      fi
-    done
+    # PID exited — fall back to AppleScript window polling
+    log "Browser PID exited — polling for app window"
+    poll_for_window_close "Google Chrome"
   fi
 else
-  # Fallback: no PID to track. Keep server running until user kills the app.
+  # No PID to track. Keep server running until user kills the app.
   log "No browser PID to track — server will run until app is quit"
-  # Wait indefinitely (cleanup trap handles shutdown)
   while true; do sleep 60; done
 fi
 
