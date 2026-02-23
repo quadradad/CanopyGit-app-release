@@ -44,6 +44,7 @@ registerRoutes(app, {
   databaseService,
   settingsService,
   refreshService,
+  staticPath,
 });
 
 // ── SPA Fallback ──
