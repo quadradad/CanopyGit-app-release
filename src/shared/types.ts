@@ -124,6 +124,8 @@ export interface AppSettings {
   showBranchPathInFull: boolean; // Default: false
   showCommitCountBadges: boolean; // Default: true
   branchNameFontSize: BranchNameFontSize; // Default: 'md'
+  autoRefreshEnabled: boolean; // Default: true
+  autoRefreshIntervalSeconds: number; // Default: 30
 }
 
 // ── Tree Types (renderer-only, but defined in shared for reuse) ──

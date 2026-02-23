@@ -12,6 +12,8 @@ const DEFAULT_SETTINGS: AppSettings = {
   showBranchPathInFull: false,
   showCommitCountBadges: true,
   branchNameFontSize: 'md',
+  autoRefreshEnabled: true,
+  autoRefreshIntervalSeconds: 30,
 };
 
 const SETTINGS_KEY = 'app_settings';

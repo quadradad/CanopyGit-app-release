@@ -11,6 +11,7 @@ import {
   APP_REFRESH,
   APP_GET_SETTINGS,
   FOCUS_REFRESH_DEBOUNCE_MS,
+  DEFAULT_AUTO_REFRESH_INTERVAL_MS,
 } from '../../shared/constants';
 import { invoke } from '../lib/api';
 import { useRepo } from './RepoContext';
@@ -104,40 +105,89 @@ export function RefreshProvider({ children }: { children: React.ReactNode }) {
     }
   }, [currentRepo?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Focus-based refresh with debounce, respecting settings
+  // Background polling + visibility-based refresh
   useEffect(() => {
-    let handler: (() => void) | undefined;
+    let intervalId: ReturnType<typeof setInterval> | null = null;
+    let disposed = false;
 
-    async function setupFocusRefresh() {
-      // Load settings to check autoRefreshOnFocus and cooldown
+    async function setup() {
       const settingsResult = await invoke<AppSettings>(APP_GET_SETTINGS);
+      if (disposed) return;
 
-      const autoRefresh = settingsResult.ok
+      const pollingEnabled = settingsResult.ok
+        ? settingsResult.data.autoRefreshEnabled
+        : true;
+      const pollingIntervalMs = settingsResult.ok
+        ? settingsResult.data.autoRefreshIntervalSeconds * 1000
+        : DEFAULT_AUTO_REFRESH_INTERVAL_MS;
+      const focusRefreshEnabled = settingsResult.ok
         ? settingsResult.data.autoRefreshOnFocus
         : true;
       const cooldownMs = settingsResult.ok
         ? settingsResult.data.refreshCooldownSeconds * 1000
         : FOCUS_REFRESH_DEBOUNCE_MS;
 
-      if (!autoRefresh) return;
-
-      // Use visibilitychange for tab focus detection
-      handler = () => {
-        if (document.visibilityState === 'visible') {
-          const now = Date.now();
-          if (now - lastRefreshTimeRef.current > cooldownMs) {
+      function startPolling() {
+        stopPolling();
+        if (pollingEnabled) {
+          intervalId = setInterval(() => {
             void refresh();
-          }
+          }, pollingIntervalMs);
         }
+      }
+
+      function stopPolling() {
+        if (intervalId !== null) {
+          clearInterval(intervalId);
+          intervalId = null;
+        }
+      }
+
+      function handleVisibilityChange() {
+        if (document.visibilityState === 'visible') {
+          // Tab became visible — immediate refresh + restart polling
+          if (pollingEnabled) {
+            void refresh();
+            startPolling();
+          } else if (focusRefreshEnabled) {
+            // Fallback to legacy focus-refresh with cooldown
+            const now = Date.now();
+            if (now - lastRefreshTimeRef.current > cooldownMs) {
+              void refresh();
+            }
+          }
+        } else {
+          // Tab hidden — pause polling
+          stopPolling();
+        }
+      }
+
+      document.addEventListener('visibilitychange', handleVisibilityChange);
+
+      // Start polling immediately if tab is visible
+      if (document.visibilityState === 'visible') {
+        startPolling();
+      }
+
+      // Store cleanup references
+      return () => {
+        stopPolling();
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
       };
-      document.addEventListener('visibilitychange', handler);
     }
 
-    void setupFocusRefresh();
-    return () => {
-      if (handler) {
-        document.removeEventListener('visibilitychange', handler);
+    let cleanup: (() => void) | undefined;
+    void setup().then((fn) => {
+      if (disposed) {
+        fn?.();
+      } else {
+        cleanup = fn;
       }
+    });
+
+    return () => {
+      disposed = true;
+      cleanup?.();
     };
   }, [refresh]);
 
