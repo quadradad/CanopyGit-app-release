@@ -19,7 +19,8 @@
     "type-check": "tsc --noEmit",
     "validate": "npm run lint && npm run type-check && npm test",
     "create-app": "./scripts/create-mac-app.sh",
-    "build-release": "./scripts/build-release.sh"
+    "build-release": "./scripts/build-release.sh",
+    "publish-release": "./scripts/publish-release.sh"
   },
   "keywords": [
     "git",
