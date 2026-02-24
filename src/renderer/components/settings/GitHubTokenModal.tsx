@@ -57,8 +57,11 @@ export function GitHubTokenModal({ onClose }: GitHubTokenModalProps) {
       } else {
         setError('Token is invalid or expired. Please try again.');
       }
-    } catch {
-      setError('Failed to verify token. Please check and try again.');
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : '';
+      setError(detail
+        ? `Failed to verify token: ${detail}`
+        : 'Failed to verify token. Please check and try again.');
     } finally {
       setIsVerifying(false);
     }

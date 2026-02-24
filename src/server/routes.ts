@@ -257,10 +257,12 @@ export function registerRoutes(app: Express, services: Services): void {
       return ok(result);
     },
     [APP_RESET_DATA]: async () => {
-      // In web mode, reset clears the database and settings.
-      // The client handles page reload.
+      // Reset clears the database and settings, then re-initializes
+      // so the server remains functional without a restart.
       databaseService.reset();
-      settingsService.clearAll();
+      databaseService.initialize();
+      settingsService.initializeEncryption();
+      githubService.reinitialize();
       return ok(undefined);
     },
     [APP_REFRESH]: async (body) => {
